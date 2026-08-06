@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(npm run *)",
+      "Bash(npm audit *)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(uvicorn *)",
+      "Bash(taskkill *)",
+      "Bash(rm *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(cp *)",
+      "Bash(find *)",
+      "Bash(curl *)",
+      "Bash(git *)",
+      "Bash(echo *)",
+      "Bash(powershell *)",
+      "Bash(timeout *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Set-Location *)",
+      "PowerShell(npm *)",
+      "PowerShell(npx *)",
+      "Read(//c/Users/kevin/Desktop/LongChainRAG*/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File scripts/check-gate.ps1",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
