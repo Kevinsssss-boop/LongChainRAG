@@ -38,16 +38,13 @@ class ChatService:
         self.model = settings.LLM_MODEL_NAME
 
     async def generate_stream(self, session_id: str, user_message: str) -> AsyncGenerator[dict, None]:
-        # Save user message
+        # Save user message + update session timestamp in ONE commit
         user_msg = Message(session_id=session_id, role="user", content=user_message)
         self.db.add(user_msg)
-        self.db.commit()
-
-        # Update session timestamp
         session = self.db.query(ChatSession).filter(ChatSession.id == session_id).first()
         if session:
             session.updated_at = datetime.utcnow()
-            self.db.commit()
+        self.db.commit()
 
         # Check semantic cache
         cached = self.cache.lookup(user_message)
@@ -91,6 +88,30 @@ class ChatService:
                 context = "（知识库为空，请直接基于你的知识回答）"
                 citations = []
 
+            # --- Stress Test Mock Path ---
+            if settings.STRESS_TEST_MODE:
+                source_info = citations[0]["source"] if citations else "N/A"
+                mock_response = (
+                    f"[STRESS TEST MOCK] Answer to: {user_message}\n\n"
+                    f"Retrieved {len(docs)} chunks from knowledge base. "
+                    f"Top source: {source_info}.\n\n"
+                    f"This is a mock response for stress testing. "
+                    f"In production, this would be a detailed RAG answer "
+                    f"with citations and product information."
+                )
+                yield {"type": "token", "content": mock_response}
+                yield {"type": "citations", "data": citations}
+
+                assistant_msg = Message(
+                    session_id=session_id, role="assistant",
+                    content=mock_response, citations=citations, token_count=0,
+                )
+                self.db.add(assistant_msg)
+                self._auto_title(session_id, commit=False)
+                self.db.commit()
+                return
+            # --- End Mock Path ---
+
             chat_history = self._get_chat_history(session_id)
 
             # Build messages
@@ -124,10 +145,8 @@ class ChatService:
                 content=full_response, citations=citations, token_count=0,
             )
             self.db.add(assistant_msg)
+            self._auto_title(session_id, commit=False)
             self.db.commit()
-
-            # Auto title
-            self._auto_title(session_id)
 
             # Store in cache
             self.cache.store(user_message, full_response, citations)
@@ -151,9 +170,11 @@ class ChatService:
             parts.append(f"{role_label}: {msg.content[:200]}")
         return "\n".join(parts)
 
-    def _auto_title(self, session_id: str):
+    def _auto_title(self, session_id: str, commit: bool = True):
         session = self.db.query(ChatSession).filter(ChatSession.id == session_id).first()
         if not session or session.title != "新对话":
+            if commit:
+                self.db.commit()
             return
         messages = (
             self.db.query(Message)
@@ -165,4 +186,5 @@ class ChatService:
             session.title = messages.content[:20]
         elif messages:
             session.title = messages.content[:6]
-        self.db.commit()
+        if commit:
+            self.db.commit()

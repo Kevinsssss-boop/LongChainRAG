@@ -30,6 +30,10 @@ rate_limiter = RateLimiter()
 
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limit middleware for FastAPI."""
+    # Bypass rate limiting in stress test mode
+    if settings.STRESS_TEST_MODE:
+        return await call_next(request)
+
     # Skip rate limiting for non-API routes
     if not request.url.path.startswith("/api/"):
         return await call_next(request)

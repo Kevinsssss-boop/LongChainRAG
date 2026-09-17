@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "RAG 知识库问答系统"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
+    STRESS_TEST_MODE: bool = False  # When True, all external API calls are mocked
     SECRET_KEY: str = "change-me-to-a-random-secret-key-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours

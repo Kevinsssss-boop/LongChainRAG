@@ -1,4 +1,6 @@
 """Embedding service using direct httpx calls to DashScope API."""
+import hashlib
+import random as _random
 import httpx
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -30,6 +32,9 @@ class EmbeddingService:
 
     def _call_api(self, text: str) -> list[float]:
         """Call DashScope embedding API for a single text."""
+        if settings.STRESS_TEST_MODE:
+            return self._mock_embed(text)
+
         with httpx.Client(timeout=60) as client:
             resp = client.post(
                 self.api_url,
@@ -39,6 +44,14 @@ class EmbeddingService:
             if resp.status_code != 200:
                 raise Exception(f"Embedding error {resp.status_code}: {resp.text[:300]}")
             return resp.json()["data"][0]["embedding"]
+
+    @staticmethod
+    def _mock_embed(text: str) -> list[float]:
+        """Deterministic fake embedding: same text always produces same vector.
+        Uses MD5 hash of text as seed for reproducible 1024-dim vectors."""
+        seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        rng = _random.Random(seed)
+        return [rng.random() for _ in range(1024)]
 
 
 class _DashScopeEmbeddings(Embeddings):
