@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from app.api import auth, session, chat, knowledge, debug
+import secrets
+from app.api import auth, session, chat, knowledge
 from app.middleware.cors import setup_cors
 from app.middleware.rate_limit import rate_limit_middleware
 from app.db.database import engine, Base
@@ -28,7 +29,12 @@ def create_app() -> FastAPI:
     app.include_router(session.router)
     app.include_router(chat.router)
     app.include_router(knowledge.router)
-    app.include_router(debug.router)  # Debug endpoint
+    # 这里原本还注册了一个 /api/debug 路由，本次删除，原因有二：
+    #   1. debug.py 里硬编码了一把真实的 DashScope API Key（已随公开仓库泄露，
+    #      需到阿里云控制台吊销）。密钥不该出现在源码里，更不该进 git 历史。
+    #   2. 那个 /api/debug/test-llm 接口没有任何鉴权，等于一个公开的免费 LLM 代理：
+    #      凭它就能拿别人的额度刷任意 prompt。
+    # 它提供的 /health2 与下面正式的 /api/health 重复，没有保留价值。
 
     @app.get("/api/health")
     def health_check():
@@ -55,14 +61,32 @@ def init_db():
     try:
         admin = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
         if not admin:
+            # 密码不再有默认值。此前默认是 "123456"，启动时自动建号 ——
+            # 任何人克隆后部署都会得到一个口令公开的管理员，而 start.bat
+            # 还把这个口令印在启动横幅上。
+            # 现在：没配就随机生成一个，只在创建这一次打印出来。
+            password = settings.ADMIN_PASSWORD.strip()
+            generated = not password
+            if generated:
+                password = secrets.token_urlsafe(12)
+
             admin = User(
                 username=settings.ADMIN_USERNAME,
-                hashed_password=hash_password(settings.ADMIN_PASSWORD),
+                hashed_password=hash_password(password),
                 is_admin=True,
             )
             db.add(admin)
             db.commit()
-            print(f"Admin user created: {settings.ADMIN_USERNAME}")
+
+            if generated:
+                line = "=" * 62
+                print(f"\n{line}")
+                print(f"  已创建管理员账号：{settings.ADMIN_USERNAME}")
+                print(f"  初始密码（只显示这一次，请立即保存）：{password}")
+                print(f"  想指定固定密码，就在 backend/.env 里配置 ADMIN_PASSWORD")
+                print(f"{line}\n")
+            else:
+                print(f"Admin user created: {settings.ADMIN_USERNAME}（密码取自 ADMIN_PASSWORD）")
     finally:
         db.close()
 

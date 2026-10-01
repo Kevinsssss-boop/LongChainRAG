@@ -55,8 +55,17 @@ echo ========================================
 echo   Startup Complete!
 echo   Frontend : http://localhost:5173
 echo   API Docs : http://localhost:8000/docs
-echo   Admin    : admin / 123456
 echo ========================================
+echo.
+echo   [NOTE] Admin password
+echo   No default password any more. On first run the backend
+echo   prints a randomly generated one in its console window
+echo   (the "RAG-Backend" window) -- copy it from there.
+echo   To set a fixed password, put ADMIN_PASSWORD=... in
+echo   backend\.env and restart the backend.
+echo.
+echo   [NOTE] First run also needs a real LLM API key in
+echo   backend\.env -- see backend\.env.example
 echo.
 echo Press any key to open browser...
 pause >nul
