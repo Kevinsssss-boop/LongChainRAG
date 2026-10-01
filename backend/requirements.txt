@@ -1,20 +1,45 @@
+# 运行时依赖。
+#
+# 规则：**代码里直接 import 的包必须在这里显式声明**，不能靠传递依赖。
+# httpx / numpy / starlette / langchain-core 原来都是靠上游带进来的 ——
+# 上游一改版就是 ImportError，而且这种错只在全新环境里才暴露。
+# 用 scripts/check_requirements.py 对账（它会扫 app/ 下所有 import）。
+#
+# 这里只写顶层包 + 版本区间；精确版本见 requirements.lock（可复现安装用）。
+# 开发/测试依赖见 requirements-dev.txt。
+
+# --- Web 框架 ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
+starlette>=0.37.0          # from starlette.concurrency import run_in_threadpool
+python-multipart>=0.0.12   # FastAPI 解析文件上传要它（代码里没有 import，但运行时必需）
+
+# --- 数据 ---
 sqlalchemy>=2.0.35
+alembic>=1.13.3
 pydantic>=2.9.0
 pydantic-settings>=2.5.0
+
+# --- 认证 ---
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
-bcrypt>=4.0.0,<5.0.0
-python-multipart>=0.0.12
+bcrypt>=4.0.0,<5.0.0       # passlib 1.7.4 与 bcrypt 5.x 不兼容，锁在 4.x
+
+# --- RAG ---
 langchain>=0.3.0
+langchain-core>=0.3.0
 langchain-community>=0.3.0
-langchain-openai>=0.2.0
 langchain-text-splitters>=0.3.0
 langchain-chroma>=0.1.0
 chromadb>=0.5.0
-pypdf>=5.0
+pypdf>=5.0                 # PyPDFLoader 运行时需要
 rank-bm25>=0.2.2
-aiofiles>=24.1.0
-slowapi>=0.1.9
-alembic>=1.13.3
+
+# --- 数值 / HTTP ---
+numpy>=1.26.0              # 语义缓存的余弦相似度
+httpx>=0.27.0              # 调大模型与 embedding 接口
+
+# 已移除（声明了但代码里从没用过）：
+#   slowapi            限流是自己写的中间件，没用到它
+#   langchain-openai   直接走 httpx，没走 LangChain 的 OpenAI 封装
+#   aiofiles           没有任何异步文件读写

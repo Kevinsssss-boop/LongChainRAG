@@ -1,0 +1,9 @@
+# 开发与测试依赖。
+#
+#   pip install -r requirements-dev.txt
+#
+# 原来 pytest 只装在开发机的 venv 里、没有声明 —— 别人克隆下来跑不了测试。
+-r requirements.txt
+
+pytest>=8.0
+pytest-asyncio>=0.24       # pytest.ini 里的 asyncio_mode = auto 靠它生效
