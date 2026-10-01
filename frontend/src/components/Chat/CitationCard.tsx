@@ -5,7 +5,10 @@ import { Citation } from '../../api/session';
 const { Text, Paragraph } = Typography;
 
 interface CitationCardProps {
-  citations: Citation[];
+  // 允许 null：组件自己的守卫就是 `if (!citations || ...)`，
+  // 而 API 返回的消息里 citations 本来就可空（见 session.ts 的 Message）。
+  // 类型写成不可空会让「无引用」这个真实状态无法表达。
+  citations: Citation[] | null;
 }
 
 export function CitationCard({ citations }: CitationCardProps) {
