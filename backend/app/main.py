@@ -1,13 +1,21 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import secrets
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+
 from app.api import auth, session, chat, knowledge
 from app.middleware.cors import setup_cors
 from app.middleware.rate_limit import rate_limit_middleware
-from app.db.database import engine, Base
+from app.db.database import SessionLocal
 from app.config import settings
 from app.models import User
 from app.core.security import hash_password
+
+# backend/ 目录，用来定位 alembic.ini 与 alembic/（main.py 在 backend/app/ 下）
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 def create_app() -> FastAPI:
@@ -18,11 +26,12 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # Setup CORS
-    setup_cors(app)
-
-    # Setup rate limiting
+    # 注册顺序 = 嵌套顺序，**后注册的在更外层**。
+    # 限流必须先注册，这样 CORSMiddleware 才是最外层：限流直接返回的 429
+    # 才会带上 Access-Control-Allow-Origin。反过来的话浏览器只会报
+    # 「网络错误」，前端既看不到 429 也看不到那句提示文案。
     app.middleware("http")(rate_limit_middleware)
+    setup_cors(app)
 
     # Register routers
     app.include_router(auth.router)
@@ -50,12 +59,25 @@ def create_app() -> FastAPI:
     return app
 
 
+def run_migrations() -> None:
+    """把数据库结构升到最新（alembic upgrade head）。
+
+    用 alembic 而不是 Base.metadata.create_all()，原因是 create_all 只建
+    「缺失的表」，对**已存在的表不加列**：给 Message 加一个字段后，老库不会
+    有任何变化，接着所有查询都会报 "no such column: messages.feedback"。
+    迁移则是就地升级，不用删库重来。
+    """
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    # alembic.ini 里写的是相对路径 alembic，这里换成绝对路径，
+    # 这样不管从哪个目录启动 uvicorn 都能找到迁移脚本。
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+    command.upgrade(cfg, "head")
+
+
 def init_db():
     """Initialize database tables and seed admin user."""
-    Base.metadata.create_all(bind=engine)
-
-    from sqlalchemy.orm import Session
-    from app.db.database import SessionLocal
+    run_migrations()
 
     db = SessionLocal()
     try:
