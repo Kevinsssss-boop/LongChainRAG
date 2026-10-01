@@ -66,15 +66,39 @@ def send_feedback(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Record feedback for a message."""
-    message = db.query(Message).filter(Message.id == feedback.message_id).first()
-    if not message:
+    """Record feedback for a message.
+
+    原来这个接口同时有三个问题，一次都没跑通过：
+
+    1. **写坏数据。** 评价被塞进 message.citations["feedback"]，但 citations
+       是 JSON **数组**（见 models 与 chat_service 里的 citations[0]["source"]）。
+       对数组取字符串下标直接 TypeError —— 凡是带引用的消息，评价必定 500；
+       而 citations 为 None 时它先把字段赋成 {}，等于把这条消息的引用整个
+       覆盖掉，那条消息从此渲染不出来。现在存进独立的 messages.feedback 列。
+    2. **越权。** 原来只按 message_id 查，不校验消息属不属于当前用户 ——
+       拿任意 ID 就能给别人的对话打分。
+    3. **不校验会话归属。** URL 里的 session_id 与消息实际所属的会话可以
+       对不上，现在一并校验。
+    """
+    message = (
+        db.query(Message)
+        .join(ChatSession, Message.session_id == ChatSession.id)
+        .filter(
+            Message.id == feedback.message_id,
+            Message.session_id == session_id,
+            ChatSession.user_id == current_user.id,
+        )
+        .first()
+    )
+    if message is None:
+        # 故意不区分「消息不存在」和「消息不属于你」：区分了就等于提供了
+        # 一个探测别人消息 ID 是否存在的接口。
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="消息不存在")
 
-    # Store feedback in metadata (simple approach)
-    if message.citations is None:
-        message.citations = {}
-    message.citations["feedback"] = feedback.rating
+    if message.role != "assistant":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="只能对助手回复评价")
+
+    message.feedback = feedback.rating
     db.commit()
 
-    return {"message": "反馈已记录"}
+    return {"message": "反馈已记录", "message_id": message.id, "rating": message.feedback}

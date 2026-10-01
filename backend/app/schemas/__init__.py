@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 
 
@@ -77,6 +77,9 @@ class MessageResponse(BaseModel):
     content: str
     citations: Optional[list] = None
     token_count: int = 0
+    # 用户对这条回复的评价："up" / "down" / None（未评价）。
+    # 前端据此高亮已点过的那个按钮。
+    feedback: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -96,7 +99,9 @@ class ChatRequest(BaseModel):
 
 class ChatFeedback(BaseModel):
     message_id: str
-    rating: str  # "up" or "down"
+    # 用 Literal 而不是 str：原来声明成 str，任意字符串都能写进库，
+    # 前端拿到不认识的值只能静默忽略。现在非法值直接 422。
+    rating: Literal["up", "down"]
 
 
 # ── Knowledge ──
