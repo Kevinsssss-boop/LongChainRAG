@@ -49,3 +49,6 @@ tests/stress/__pycache__/
 backend/data/test_*.db
 backend/data/test_chroma/
 backend/data/test_uploads/
+# 生成的报告与临时文件
+report.html
+=*.*
