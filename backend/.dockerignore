@@ -1,0 +1,21 @@
+# .venv 是本机的虚拟环境（几百 MB，而且和容器里的平台不兼容），
+# 不排除的话 COPY . /app/ 会把它整个拷进镜像。
+.venv/
+venv/
+
+# 运行期数据：数据库、向量库、上传的文件。
+# 这些要走 volume 挂载，不能烤进镜像。
+data/
+
+# 密钥。绝不能进镜像层 —— 镜像会被推送、被缓存，历史层删不掉。
+.env
+.env.local
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+tests/
+scripts/
