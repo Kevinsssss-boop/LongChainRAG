@@ -18,6 +18,12 @@ _INSECURE_SECRETS = {
     "your-secret-key",
 }
 
+# 默认的 OpenAI 兼容网关（阿里云百炼）。LLM_BASE_URL 留空时用它。
+# 收敛成一个常量：聊天、embedding、以及 LangChain 的 embeddings 包装
+# 原来各写了一份字面量，改一处漏两处。LLM_BASE_URL 必须真的生效 ——
+# 之前它只是写在 .env.example 里，三处调用都硬编码了 DashScope 地址。
+DEFAULT_LLM_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
 
 class Settings(BaseSettings):
     # App

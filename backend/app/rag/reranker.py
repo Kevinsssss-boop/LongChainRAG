@@ -14,11 +14,12 @@ class Reranker:
         if not documents:
             return documents
 
-        # Sort by semantic score (lower distance = more relevant)
-        # For display: similarity = 1/(1+distance), higher = more relevant
-        # For sorting: sort by distance ascending
+        # 按距离升序：metadata["score"] 是 Chroma 的 L2 距离，越小越相关
+        # （见 retriever.py 写入该字段的位置）。
+        # 缺字段的按 1.0 当作「最不相关」—— 下面最终排序用的也是 1.0，
+        # 原来这里写 0.5、那里写 1.0，同一个字段两处默认值不一致。
         docs_with_scores = sorted(
-            [(doc, doc.metadata.get("score", 0.5)) for doc in documents],
+            [(doc, doc.metadata.get("score", 1.0)) for doc in documents],
             key=lambda x: x[1],  # lower distance first
         )
 
