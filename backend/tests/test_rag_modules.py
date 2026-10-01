@@ -80,15 +80,49 @@ class TestReranker:
         result = self.reranker.rerank("query", docs, top_k=4)
         assert len(result) == 2  # Returns as-is when fewer than top_k
 
-    def test_rerank_sorts_by_score(self):
+    def test_rerank_sorts_by_distance_ascending(self):
+        """metadata["score"] 是**距离**，越小越相关 —— 升序才是对的。
+
+        这个语义来自 retriever.py：它把 Chroma similarity_search_with_score
+        的返回值（L2 距离，越小越相似）写进 doc.metadata["score"]，chat_service
+        再按 1/(1+distance) 换算成界面上显示的相似度百分比。
+
+        所以下面 0.3 比 0.9 更相关，应当排在前面。
+
+        原来的测试把这个字段当成「分数越大越好」，与代码契约正好相反，
+        所以它从加进来那天起就是红的（已核实：在未做任何改动的原始代码上
+        同样失败）。断言写错方向比不写测试更糟——它会诱导人「修」好代码。
+        """
         docs = [
-            Document(page_content="low score", metadata={"score": 0.3}),
-            Document(page_content="high score", metadata={"score": 0.9}),
-            Document(page_content="mid score", metadata={"score": 0.6}),
+            Document(page_content="far", metadata={"score": 0.9}),
+            Document(page_content="near", metadata={"score": 0.3}),
+            Document(page_content="mid", metadata={"score": 0.6}),
         ]
         result = self.reranker.rerank("query", docs, top_k=2)
+
         assert len(result) == 2
-        assert result[0].page_content == "high score"  # Top score first
+        assert result[0].page_content == "near"
+        assert result[1].page_content == "mid"
+
+    def test_rerank_guarantees_one_chunk_per_source(self):
+        """来源多样性：同一份文档的相邻片段不能把上下文位置占满。
+
+        这是 reranker 存在的唯一理由（见作品集页面的「技术架构」一节），
+        但它此前完全没有测试覆盖。
+        """
+        docs = [
+            Document(page_content="a1", metadata={"score": 0.1, "source": "a.pdf"}),
+            Document(page_content="a2", metadata={"score": 0.2, "source": "a.pdf"}),
+            Document(page_content="a3", metadata={"score": 0.3, "source": "a.pdf"}),
+            Document(page_content="b1", metadata={"score": 0.9, "source": "b.pdf"}),
+        ]
+        result = self.reranker.rerank("query", docs, top_k=2)
+
+        sources = [d.metadata["source"] for d in result]
+        assert "b.pdf" in sources, (
+            "b.pdf 唯一的那个片段应当挤进前 2 —— 否则 a.pdf 的三条相邻片段"
+            "会把上下文窗口占满，这正是重排序要解决的问题"
+        )
 
     def test_rerank_missing_score_defaults(self):
         docs = [
