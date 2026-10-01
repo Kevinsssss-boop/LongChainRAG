@@ -38,6 +38,12 @@ export function chatStream(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    // 流是否已经有「结局」（收到 done 或 error）。
+    // 服务端中途断开、反向代理截断响应时，reader 会正常读到 EOF，
+    // 循环于是干净退出 —— 但两个回调一个都没被调用过。调用方的 streaming
+    // 状态就永远停在 true，输入框从此点不动，只能刷新页面。
+    // 所以循环结束后要兜底收尾一次。
+    let settled = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -59,9 +65,11 @@ export function chatStream(
                 onCitations(data.data || []);
                 break;
               case 'done':
+                settled = true;
                 onDone();
                 break;
               case 'error':
+                settled = true;
                 onError(data.content || '未知错误');
                 break;
             }
@@ -70,6 +78,10 @@ export function chatStream(
           }
         }
       }
+    }
+
+    if (!settled) {
+      onDone();
     }
   }).catch((err) => {
     if (err.name !== 'AbortError') {

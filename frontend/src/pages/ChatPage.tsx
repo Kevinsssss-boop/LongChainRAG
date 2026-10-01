@@ -68,10 +68,19 @@ export function ChatPage() {
         (token) => appendStreamToken(token),
         (cites) => setCitations(cites),
         () => {
-          // Save stream as permanent message
-          finalizeStream();
-          setStreaming(false);
-          fetchSessions();
+          // 收尾这一步必须保证状态复位。
+          // finalizeStream 一旦抛错，如果后面的 setStreaming(false) 被跳过，
+          // streaming 就永远停在 true —— 输入框从此禁用，整个会话卡死，
+          // 只能刷新页面。所以异常要就地吃掉（并报给用户），
+          // 复位动作无条件执行。
+          try {
+            finalizeStream(); // 把流式内容固化成一条正式消息
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setStreaming(false);
+            fetchSessions();
+          }
         },
         (err) => {
           setStreaming(false);
